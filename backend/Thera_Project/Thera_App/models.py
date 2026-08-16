@@ -1,0 +1,100 @@
+import uuid
+from django.db import models
+from django.core.exceptions import ValidationError
+
+class Vacancy(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('active', 'Active'),
+        ('closed', 'Closed'),
+        ('archived', 'Archived'),
+    ]
+
+    EMPLOYMENT_TYPES = [
+        ('full_time', 'Full Time'),
+        ('part_time', 'Part Time'),
+        ('contract', 'Contract'),
+        ('temporary', 'Temporary'),
+        ('other', 'Other'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    location = models.CharField(max_length=255, blank=True, null=True)
+    employment_type = models.CharField(max_length=20, choices=EMPLOYMENT_TYPES, blank=True, null=True)
+    summary = models.TextField()
+    description = models.TextField(blank=True, null=True)
+    requirements = models.TextField(blank=True, null=True)
+    posted_at = models.DateTimeField(blank=True, null=True)
+    closes_at = models.DateTimeField(blank=True, null=True)
+    display_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['display_order', '-posted_at', '-created_at']
+
+    def __str__(self):
+        return f"{self.title} ({self.get_status_display()})"
+
+
+class Inquiry(models.Model):
+    INQUIRY_TYPES = [
+        ('organization', 'Healthcare Organization / Clinic / Provider'),
+        ('family', 'Family / Caregiver / Individual Client'),
+        ('therapist', 'Qualified Therapist (Joining Talent Pool)'),
+        ('other', 'Other General Inquiry'),
+    ]
+
+    STATUS_CHOICES = [
+        ('new', 'New'),
+        ('qualified', 'Qualified'),
+        ('unqualified', 'Unqualified'),
+        ('contacted', 'Contacted'),
+        ('closed', 'Closed'),
+    ]
+
+    CONTACT_METHODS = [
+        ('email', 'Email'),
+        ('phone', 'Phone'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    inquiry_type = models.CharField(max_length=20, choices=INQUIRY_TYPES, default='other')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
+    
+    name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True, null=True)
+    phone = models.CharField(max_length=50, blank=True, null=True)
+    
+    organization_name = models.CharField(max_length=255, blank=True, null=True)
+    role_or_profession = models.CharField(max_length=255, blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    
+    preferred_contact_method = models.CharField(max_length=10, choices=CONTACT_METHODS, default='email')
+    therapist_type_needed = models.CharField(max_length=255, blank=True, null=True)
+    message = models.TextField()
+    
+    consent = models.BooleanField(default=False)
+    internal_notes = models.TextField(blank=True, null=True)
+    
+    # Vacancy context (both foreign key relationship and text fallback context)
+    vacancy = models.ForeignKey(Vacancy, on_delete=models.SET_NULL, blank=True, null=True, related_name='inquiries')
+    vacancy_context = models.CharField(max_length=255, blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Inquiries"
+        ordering = ['-created_at']
+
+    def clean(self):
+        super().clean()
+        if not self.email and not self.phone:
+            raise ValidationError("At least one contact method (Email or Phone) is required.")
+
+    def __str__(self):
+        return f"{self.name} - {self.get_inquiry_type_display()} ({self.status})"

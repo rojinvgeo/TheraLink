@@ -1,0 +1,39 @@
+# Virtual Environments
+backend/thera/
+.venv/
+env/
+venv/
+ENV/
+
+# Dependency Directories
+frontend/node_modules/
+node_modules/
+
+# Production Builds
+frontend/dist/
+dist/
+
+# Python Cache & Compiled Code
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+backend/Thera_Project/Thera_App/migrations/__pycache__/
+
+# Databases
+*.sqlite3
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE & Config caches
+.agent/
+.agents/
+.claude/
+.uv-cache/
+_bmad-output/
+.env
+.idea/
+.vscode/
