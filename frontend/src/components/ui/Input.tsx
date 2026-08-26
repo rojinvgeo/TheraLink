@@ -1,9 +1,10 @@
-import type { InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react';
 
 interface BaseInputProps {
   label?: string;
   error?: string;
   textarea?: boolean;
+  icon?: ReactNode;
 }
 
 export type InputProps = BaseInputProps & 
@@ -16,6 +17,7 @@ export const Input: React.FC<InputProps> = ({
   textarea = false,
   className = '',
   id,
+  icon,
   ...props
 }) => {
   const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
@@ -37,11 +39,18 @@ export const Input: React.FC<InputProps> = ({
           {...(props as TextareaHTMLAttributes<HTMLTextAreaElement>)}
         />
       ) : (
-        <input
-          id={inputId}
-          className={inputClass}
-          {...(props as InputHTMLAttributes<HTMLInputElement>)}
-        />
+        <div className="relative w-full">
+          {icon && (
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10 flex items-center justify-center pointer-events-none">
+              {icon}
+            </span>
+          )}
+          <input
+            id={inputId}
+            className={`${inputClass} ${icon ? '!pl-10' : ''}`}
+            {...(props as InputHTMLAttributes<HTMLInputElement>)}
+          />
+        </div>
       )}
 
       {error && (
