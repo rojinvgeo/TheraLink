@@ -9,4 +9,6 @@ export { default as VacanciesPage } from './VacanciesPage';
 export { default as NotFoundPage } from './NotFoundPage';
 export { default as AdminLoginPage } from './AdminLoginPage';
 export { default as AdminDashboardPage } from './AdminDashboardPage';
+export { default as RecruitmentPartnerPlanPage } from './RecruitmentPartnerPlanPage';
+export { default as PartnerAuthPage } from './PartnerAuthPage';
 

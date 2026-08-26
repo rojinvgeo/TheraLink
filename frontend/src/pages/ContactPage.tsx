@@ -20,6 +20,7 @@ export default function ContactPage(): ReactNode {
   const [searchParams] = useSearchParams();
   const typeParam = searchParams.get('type');
   const vacancyParam = searchParams.get('vacancy');
+  const planParam = searchParams.get('plan');
 
   const getVacancyDisplayName = (slug: string) => {
     switch (slug) {
@@ -65,7 +66,11 @@ export default function ContactPage(): ReactNode {
     } else {
       setInquiryType('other');
     }
-  }, [typeParam, vacancyParam]);
+
+    if (planParam) {
+      setMessage(`I am interested in becoming a recruitment partner under the ${planParam} Plan. Please contact me with more information.`);
+    }
+  }, [typeParam, vacancyParam, planParam]);
 
   // Validation Logic
   const validateForm = () => {

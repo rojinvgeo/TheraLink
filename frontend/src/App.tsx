@@ -12,7 +12,9 @@ import {
   VacanciesPage,
   NotFoundPage,
   AdminLoginPage,
-  AdminDashboardPage
+  AdminDashboardPage,
+  RecruitmentPartnerPlanPage,
+  PartnerAuthPage
 } from './pages';
 import { Showcase } from './components/ui';
 
@@ -26,6 +28,9 @@ export default function App(): ReactNode {
         <Route path="/for-families" element={<PageShell title="For Families"><FamiliesPage /></PageShell>} />
         <Route path="/for-therapists" element={<PageShell title="For Therapists"><TherapistsPage /></PageShell>} />
         <Route path="/vacancies" element={<PageShell title="Active Placements & Openings"><VacanciesPage /></PageShell>} />
+        <Route path="/recruitment-partner-plan" element={<PageShell title="Recruitment Partner Program"><RecruitmentPartnerPlanPage /></PageShell>} />
+        <Route path="/partner/register" element={<PageShell title="Partner Registration"><PartnerAuthPage initialMode="register" /></PageShell>} />
+        <Route path="/partner/login" element={<PageShell title="Partner Sign In"><PartnerAuthPage initialMode="login" /></PageShell>} />
         <Route path="/about" element={<PageShell title="About Us"><AboutPage /></PageShell>} />
         <Route path="/contact" element={<PageShell title="Contact & Inquiry"><ContactPage /></PageShell>} />
         <Route path="/admin/login" element={<AdminLoginPage />} />

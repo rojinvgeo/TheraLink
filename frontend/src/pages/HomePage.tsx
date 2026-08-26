@@ -400,6 +400,39 @@ export default function HomePage(): ReactNode {
         </div>
       </motion.section>
 
+      {/* 5.5 RECRUITMENT PARTNER CTA SECTION */}
+      <motion.section 
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-80px' }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="bg-canvas-alt border border-border-base rounded-2xl p-8 md:p-12 flex flex-col lg:flex-row items-center justify-between gap-8"
+      >
+        <div className="flex flex-col gap-4 max-w-2xl text-left">
+          <Badge variant="blue" className="w-fit bg-blue-50 text-brand-blue border border-blue-100/50 rounded-full px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5">
+            Partnership Program
+          </Badge>
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-slate-900 leading-tight">
+            Become a TheraLink Recruitment Partner
+          </h2>
+          <p className="text-slate-600 leading-relaxed text-base">
+            Streamline your healthcare staffing. Access a verified pool of speech, occupational, physical, and behavioral therapy specialists. We manage sourcing, pre-screening, and credential verification details so you can focus on patient care.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row lg:flex-col gap-4 w-full lg:w-auto items-stretch lg:items-center justify-center flex-shrink-0">
+          <Button 
+            variant="primary" 
+            size="lg"
+            onClick={() => navigate('/recruitment-partner-plan')}
+            className="shadow-md hover:shadow-lg transition-all duration-300 w-full text-center"
+            style={{ minWidth: '240px', justifyContent: 'center' }}
+          >
+            Become a Recruitment Partner
+          </Button>
+        </div>
+      </motion.section>
+
       {/* 6. BOTTOM CTA BANNER */}
       <motion.section 
         initial={{ opacity: 0, scale: 0.98 }}
