@@ -11,4 +11,6 @@ export { default as AdminLoginPage } from './AdminLoginPage';
 export { default as AdminDashboardPage } from './AdminDashboardPage';
 export { default as RecruitmentPartnerPlanPage } from './RecruitmentPartnerPlanPage';
 export { default as PartnerAuthPage } from './PartnerAuthPage';
+export { default as PartnerDashboardPage } from './PartnerDashboardPage';
+
 

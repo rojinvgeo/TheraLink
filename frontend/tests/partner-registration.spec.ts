@@ -77,8 +77,8 @@ test.describe('Partner Registration Flow with Razorpay Payments', () => {
     // Submit registration (Next button on step 2)
     await page.click('button:has-text("Next")');
 
-    // 4. Verify successful submission redirects to home with extended timeout
-    await expect(page).toHaveURL('/', { timeout: 15000 });
+    // 4. Verify successful submission redirects to dashboard with extended timeout
+    await expect(page).toHaveURL('/partner/dashboard', { timeout: 15000 });
   });
 
   test('should fail when passwords do not match', async ({ page }) => {
@@ -113,7 +113,7 @@ test.describe('Partner Registration Flow with Razorpay Payments', () => {
     await page.fill('input[placeholder="Company / Agency Name"]', 'First Agency');
     await page.selectOption('select', { label: 'United States' });
     await page.click('button:has-text("Next")');
-    await expect(page).toHaveURL('/', { timeout: 15000 });
+    await expect(page).toHaveURL('/partner/dashboard', { timeout: 15000 });
 
     // Try registering a second time with the same email
     await page.goto('/partner/register');
@@ -168,7 +168,7 @@ test.describe('Partner Registration Flow with Razorpay Payments', () => {
     await page.fill('input[placeholder="e.g. partner@agency.com"]', retryEmail);
     await page.click('button:has-text("Pay ₹2,500 Now")');
 
-    // 6. Assert success redirect to home
-    await expect(page).toHaveURL('/', { timeout: 15000 });
+    // 6. Assert success redirect to dashboard
+    await expect(page).toHaveURL('/partner/dashboard', { timeout: 15000 });
   });
 });

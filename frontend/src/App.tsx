@@ -14,9 +14,11 @@ import {
   AdminLoginPage,
   AdminDashboardPage,
   RecruitmentPartnerPlanPage,
-  PartnerAuthPage
+  PartnerAuthPage,
+  PartnerDashboardPage
 } from './pages';
 import { Showcase } from './components/ui';
+import { PartnerProtectedRoute } from './components/auth/PartnerProtectedRoute';
 
 export default function App(): ReactNode {
   return (
@@ -31,6 +33,11 @@ export default function App(): ReactNode {
         <Route path="/recruitment-partner-plan" element={<PageShell title="Recruitment Partner Program"><RecruitmentPartnerPlanPage /></PageShell>} />
         <Route path="/partner/register" element={<PageShell title="Partner Registration"><PartnerAuthPage initialMode="register" /></PageShell>} />
         <Route path="/partner/login" element={<PageShell title="Partner Sign In"><PartnerAuthPage initialMode="login" /></PageShell>} />
+        <Route path="/partner/dashboard" element={
+          <PartnerProtectedRoute>
+            <PartnerDashboardPage />
+          </PartnerProtectedRoute>
+        } />
         <Route path="/about" element={<PageShell title="About Us"><AboutPage /></PageShell>} />
         <Route path="/contact" element={<PageShell title="Contact & Inquiry"><ContactPage /></PageShell>} />
         <Route path="/admin/login" element={<AdminLoginPage />} />

@@ -1,6 +1,6 @@
 import type { ReactNode, FormEvent } from 'react';
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Lock, 
   Mail, 
@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { Card, Button, Input, Select, Alert } from '../components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
-import { registerPartner, verifyPartnerPayment, retryPartnerPayment } from '../api/partners';
+import { registerPartner, verifyPartnerPayment, retryPartnerPayment, checkPartnerAuth } from '../api/partners';
+import { apiRequest } from '../api/client';
 
 interface PartnerAuthPageProps {
   initialMode?: 'login' | 'register';
@@ -22,6 +23,7 @@ interface PartnerAuthPageProps {
 
 export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAuthPageProps): ReactNode {
   const navigate = useNavigate();
+  const location = useLocation();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [step, setStep] = useState<1 | 2>(1);
   
@@ -49,7 +51,16 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
     setMode(initialMode);
     setStep(1);
     setErrors({});
-  }, [initialMode]);
+    
+    // Check if redirected from route guard with paymentPending flag
+    if (location.state && (location.state as any).paymentPending) {
+      setPaymentFailed(true);
+      const emailVal = (location.state as any).email || localStorage.getItem('theralink_partner_email') || '';
+      if (emailVal) {
+        setRetryEmail(emailVal);
+      }
+    }
+  }, [initialMode, location.state]);
 
   const countryOptions = [
     { value: 'India', label: 'India' },
@@ -149,7 +160,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
           if (res.success) {
             setIsSuccess(true);
             setTimeout(() => {
-              navigate('/');
+              navigate('/partner/dashboard');
             }, 2000);
           } else {
             setErrors({ nonFieldErrors: res.message || 'Payment verification failed.' });
@@ -198,11 +209,15 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
     setIsSubmitting(true);
     retryPartnerPayment({ email: retryEmail })
     .then((res) => {
+      if (res.token) {
+        localStorage.setItem('theralink_partner_token', res.token);
+        localStorage.setItem('theralink_partner_email', retryEmail);
+      }
       if (res.already_active) {
         setIsSubmitting(false);
         setIsSuccess(true);
         setTimeout(() => {
-          navigate('/');
+          navigate('/partner/dashboard');
         }, 2000);
         return;
       }
@@ -245,15 +260,56 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
         return;
       }
 
-      // Simulate login
+      // Real REST API login
       setIsSubmitting(true);
-      setTimeout(() => {
+      apiRequest<{ token: string }>('/auth/login/', {
+        method: 'POST',
+        body: JSON.stringify({ username: email, password }),
+      })
+      .then(async (res) => {
+        localStorage.setItem('theralink_partner_token', res.token);
+        localStorage.setItem('theralink_partner_email', email);
+        
+        try {
+          const authCheck = await checkPartnerAuth();
+          setIsSubmitting(false);
+          setIsSuccess(true);
+          
+          setTimeout(() => {
+            if (authCheck.has_active_subscription) {
+              navigate('/partner/dashboard');
+            } else {
+              setPaymentFailed(true);
+              setRetryEmail(email);
+              setIsSuccess(false);
+            }
+          }, 2000);
+        } catch (e) {
+          setIsSubmitting(false);
+          setIsSuccess(true);
+          setTimeout(() => {
+            setPaymentFailed(true);
+            setRetryEmail(email);
+            setIsSuccess(false);
+          }, 2000);
+        }
+      })
+      .catch((err) => {
         setIsSubmitting(false);
-        setIsSuccess(true);
-        setTimeout(() => {
-          navigate('/');
-        }, 2000);
-      }, 1200);
+        const mappedErrors: Record<string, string> = {};
+        if (err && typeof err === 'object') {
+          if (err.non_field_errors) {
+            mappedErrors.nonFieldErrors = err.non_field_errors.join(' ');
+          } else if (err.detail) {
+            mappedErrors.nonFieldErrors = err.detail;
+          } else {
+            mappedErrors.nonFieldErrors = 'Invalid email or password. Please try again.';
+          }
+        } else {
+          mappedErrors.nonFieldErrors = 'A network error occurred. Please try again.';
+        }
+        setErrors(mappedErrors);
+      });
     } else {
       // Step 2 Final Submission
       const newErrors: Record<string, string> = {};
@@ -281,6 +337,10 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
         country
       })
       .then((res) => {
+        if (res.token) {
+          localStorage.setItem('theralink_partner_token', res.token);
+          localStorage.setItem('theralink_partner_email', email);
+        }
         if (res.razorpay_order_id && res.razorpay_key_id && res.amount_paise && res.currency) {
           triggerRazorpayCheckout(
             res.razorpay_order_id,
@@ -295,7 +355,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
           setIsSubmitting(false);
           setIsSuccess(true);
           setTimeout(() => {
-            navigate('/');
+            navigate('/partner/dashboard');
           }, 2000);
         }
       })
