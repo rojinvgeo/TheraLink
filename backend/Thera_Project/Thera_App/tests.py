@@ -300,7 +300,7 @@ class RazorpayIntegrationTests(APITestCase):
         mock_razorpay_client.return_value.utility.verify_payment_signature.return_value = True
 
         # Precreate partner and payment order log
-        user = User.objects.create_user(username='test_user@test.com', email='test_user@test.com', password='password123')
+        user = User.objects.create_user(username='test_user@example.com', email='test_user@example.com', password='password123')
         partner = PartnerProfile.objects.create(user=user, phone_number='123', company_name='A1')
         payment = RazorpayPayment.objects.create(partner=partner, order_id='order_test123', amount=2500)
 
@@ -327,7 +327,7 @@ class RazorpayIntegrationTests(APITestCase):
         from razorpay.errors import SignatureVerificationError
         mock_razorpay_client.return_value.utility.verify_payment_signature.side_effect = SignatureVerificationError('Invalid signature')
 
-        user = User.objects.create_user(username='test_user@test.com', email='test_user@test.com', password='password123')
+        user = User.objects.create_user(username='test_user@example.com', email='test_user@example.com', password='password123')
         partner = PartnerProfile.objects.create(user=user, phone_number='123', company_name='A1')
         payment = RazorpayPayment.objects.create(partner=partner, order_id='order_test123', amount=2500)
 
@@ -348,22 +348,131 @@ class RazorpayIntegrationTests(APITestCase):
         mock_order.create.return_value = {'id': 'order_retry123'}
         mock_razorpay_client.return_value.order = mock_order
 
-        user = User.objects.create_user(username='test_user@test.com', email='test_user@test.com', password='password123')
+        user = User.objects.create_user(username='test_user@example.com', email='test_user@example.com', password='password123')
         partner = PartnerProfile.objects.create(user=user, phone_number='123', company_name='A1')
 
-        response = self.client.post(self.retry_url, {'email': 'test_user@test.com'}, format='json')
+        response = self.client.post(self.retry_url, {'email': 'test_user@example.com'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['razorpay_order_id'], 'order_retry123')
         self.assertFalse(response.data['already_active'])
 
     def test_payment_retry_already_active_subscription(self):
-        user = User.objects.create_user(username='test_user@test.com', email='test_user@test.com', password='password123')
+        user = User.objects.create_user(username='test_user@example.com', email='test_user@example.com', password='password123')
         partner = PartnerProfile.objects.create(user=user, phone_number='123', company_name='A1')
         sub = PartnerSubscription.objects.create(partner=partner, is_active=True)
 
-        response = self.client.post(self.retry_url, {'email': 'test_user@test.com'}, format='json')
+        response = self.client.post(self.retry_url, {'email': 'test_user@example.com'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['already_active'])
+
+
+from rest_framework.authtoken.models import Token
+from .models import Candidate, CandidateRequest
+
+class RecruitmentPartnerDashboardTests(APITestCase):
+    def setUp(self):
+        self.login_url = reverse('auth-login')
+        self.check_auth_url = reverse('partner-check-auth')
+        self.dashboard_url = reverse('partner-dashboard-overview')
+        self.candidates_url = reverse('partner-candidates-list')
+        self.requests_url = reverse('partner-candidate-requests')
+        self.profile_url = reverse('partner-profile-update')
+
+        # Create two test users: one with active sub, one with no sub
+        self.user_active = User.objects.create_user(username='partner_active@example.com', email='partner_active@example.com', password='password123')
+        self.partner_active = PartnerProfile.objects.create(user=self.user_active, phone_number='111', company_name='Active Partner Ltd')
+        self.sub_active = PartnerSubscription.objects.create(partner=self.partner_active, is_active=True, amount=2500.00)
+        self.token_active = Token.objects.create(user=self.user_active)
+
+        self.user_inactive = User.objects.create_user(username='partner_inactive@example.com', email='partner_inactive@example.com', password='password123')
+        self.partner_inactive = PartnerProfile.objects.create(user=self.user_inactive, phone_number='222', company_name='Inactive Partner Ltd')
+        self.token_inactive = Token.objects.create(user=self.user_inactive)
+
+        # Populate a couple of test candidates
+        self.candidate1 = Candidate.objects.create(
+            first_name='John', last_name='Doe', email='john@example.com', phone_number='1234',
+            job_role='Speech Therapist', location='New York', experience_years=5, skills='Pediatrics, AAC'
+        )
+        self.candidate2 = Candidate.objects.create(
+            first_name='Jane', last_name='Smith', email='jane@example.com', phone_number='5678',
+            job_role='Occupational Therapist', location='Chicago', experience_years=3, skills='Sensory, ADHD'
+        )
+
+    def test_partner_check_auth_active(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_active.key)
+        response = self.client.get(self.check_auth_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+        self.assertTrue(response.data['has_active_subscription'])
+
+    def test_partner_check_auth_inactive(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_inactive.key)
+        response = self.client.get(self.check_auth_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+        self.assertFalse(response.data['has_active_subscription'])
+
+    def test_partner_dashboard_overview_blocked_for_inactive(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_inactive.key)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_partner_dashboard_overview_success(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_active.key)
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['partner']['company_name'], 'Active Partner Ltd')
+        self.assertTrue(response.data['subscription']['is_active'])
+
+    def test_candidates_list_filtering(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_active.key)
+        # Fetch all (7 seeded from migration + 2 created in setUp)
+        response = self.client.get(self.candidates_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 9)
+
+        # Filter by role (includes manually created + 2 migration seeded speech therapists)
+        response = self.client.get(self.candidates_url, {'job_role': 'Speech Therapist'})
+        self.assertEqual(len(response.data), 3)
+        self.assertEqual(response.data[0]['first_name'], 'Aisha')
+
+    def test_create_candidate_request_success(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_active.key)
+        request_data = {
+            'candidate': self.candidate1.id,
+            'request_notes': 'Need speech therapist for school.'
+        }
+        response = self.client.post(self.requests_url, request_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['candidate'], self.candidate1.id)
+
+        # Verify duplicate blocks
+        response2 = self.client.post(self.requests_url, request_data, format='json')
+        self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_profile_update(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_active.key)
+        # Get profile
+        response = self.client.get(self.profile_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Update profile
+        update_data = {
+            'first_name': 'Arjun',
+            'last_name': 'Mehta',
+            'phone_number': '9999999999',
+            'company_name': 'Active Partner Renovated',
+            'website': 'https://activepartner.com',
+            'country': 'India'
+        }
+        response = self.client.put(self.profile_url, update_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['company_name'], 'Active Partner Renovated')
+        
+        self.user_active.refresh_from_db()
+        self.assertEqual(self.user_active.first_name, 'Arjun')
+
+
 
 
 

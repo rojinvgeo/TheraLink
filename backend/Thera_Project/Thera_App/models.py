@@ -160,3 +160,55 @@ class RazorpayPayment(models.Model):
         return f"Order: {self.order_id} ({self.status})"
 
 
+class Candidate(models.Model):
+    STATUS_CHOICES = [
+        ('available', 'Available'),
+        ('placed', 'Placed'),
+        ('unavailable', 'Unavailable'),
+    ]
+
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
+    phone_number = models.CharField(max_length=30)
+    job_role = models.CharField(max_length=100)
+    location = models.CharField(max_length=100)
+    experience_years = models.IntegerField(default=0)
+    skills = models.TextField(help_text="Comma-separated list of skills")
+    bio = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='available')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Candidate Profile"
+        verbose_name_plural = "Candidate Profiles"
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.job_role})"
+
+
+class CandidateRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    partner = models.ForeignKey(PartnerProfile, on_delete=models.CASCADE, related_name='candidate_requests')
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name='requests')
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
+    request_notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Partner Candidate Request"
+        verbose_name_plural = "Partner Candidate Requests"
+        unique_together = ('partner', 'candidate')
+
+    def __str__(self):
+        return f"Request by {self.partner.company_name} for {self.candidate.first_name} ({self.status})"
+
+
+

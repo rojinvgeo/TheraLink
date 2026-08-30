@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Inquiry, Vacancy, PartnerProfile, PartnerSubscription, RazorpayPayment
+from .models import Inquiry, Vacancy, PartnerProfile, PartnerSubscription, RazorpayPayment, Candidate, CandidateRequest
 
 class VacancySerializer(serializers.ModelSerializer):
     class Meta:
@@ -140,4 +140,44 @@ class PaymentVerifySerializer(serializers.Serializer):
 
 class PaymentRetrySerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+
+class CandidateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Candidate
+        fields = '__all__'
+
+
+class CandidateRequestSerializer(serializers.ModelSerializer):
+    candidate_details = CandidateSerializer(source='candidate', read_only=True)
+    
+    class Meta:
+        model = CandidateRequest
+        fields = ['id', 'candidate', 'candidate_details', 'status', 'request_notes', 'created_at', 'updated_at']
+
+
+class PartnerProfileUpdateSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source='user.first_name', max_length=150)
+    last_name = serializers.CharField(source='user.last_name', max_length=150)
+    email = serializers.EmailField(source='user.email', read_only=True)
+    
+    class Meta:
+        model = PartnerProfile
+        fields = ['first_name', 'last_name', 'email', 'phone_number', 'company_name', 'website', 'country']
+        
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        if user_data:
+            user = instance.user
+            user.first_name = user_data.get('first_name', user.first_name)
+            user.last_name = user_data.get('last_name', user.last_name)
+            user.save()
+            
+        instance.phone_number = validated_data.get('phone_number', instance.phone_number)
+        instance.company_name = validated_data.get('company_name', instance.company_name)
+        instance.website = validated_data.get('website', instance.website)
+        instance.country = validated_data.get('country', instance.country)
+        instance.save()
+        return instance
+
 

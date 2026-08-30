@@ -11,7 +11,13 @@ from .views import (
     AdminPartnerListView,
     PaymentVerifyView,
     PaymentRetryView,
-    RazorpayWebhookView
+    RazorpayWebhookView,
+    PartnerCheckAuthView,
+    PartnerDashboardOverviewView,
+    PartnerCandidateListView,
+    PartnerCandidateDetailView,
+    PartnerCandidateRequestView,
+    PartnerProfileUpdateView
 )
 
 router = DefaultRouter()
@@ -27,7 +33,14 @@ urlpatterns = [
     path('partner/payment/verify/', PaymentVerifyView.as_view(), name='partner-payment-verify'),
     path('partner/payment/retry/', PaymentRetryView.as_view(), name='partner-payment-retry'),
     path('partner/payment/webhook/', RazorpayWebhookView.as_view(), name='partner-payment-webhook'),
+    path('partner/check-auth/', PartnerCheckAuthView.as_view(), name='partner-check-auth'),
+    path('partner/dashboard/', PartnerDashboardOverviewView.as_view(), name='partner-dashboard-overview'),
+    path('partner/candidates/', PartnerCandidateListView.as_view(), name='partner-candidates-list'),
+    path('partner/candidates/<int:pk>/', PartnerCandidateDetailView.as_view(), name='partner-candidate-detail'),
+    path('partner/requests/', PartnerCandidateRequestView.as_view(), name='partner-candidate-requests'),
+    path('partner/profile/', PartnerProfileUpdateView.as_view(), name='partner-profile-update'),
     path('admin/partners/', AdminPartnerListView.as_view(), name='admin-partners-list'),
     path('', include(router.urls)),
 ]
+
 

@@ -3,7 +3,7 @@ import json
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.utils import timezone
 from django.db.models import Q
 from django.contrib.auth.models import User
@@ -12,11 +12,13 @@ from rest_framework.views import APIView
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
-from .models import Inquiry, Vacancy, PartnerProfile, PartnerSubscription, RazorpayPayment
+from .permissions import IsSubscribedPartner
+from .models import Inquiry, Vacancy, PartnerProfile, PartnerSubscription, RazorpayPayment, Candidate, CandidateRequest
 from .serializers import (
     InquirySerializer, VacancySerializer, InquiryAdminSerializer,
     PartnerRegisterSerializer, PartnerAdminSerializer,
-    PaymentVerifySerializer, PaymentRetrySerializer
+    PaymentVerifySerializer, PaymentRetrySerializer,
+    CandidateSerializer, CandidateRequestSerializer, PartnerProfileUpdateSerializer
 )
 
 # 1. Public Inquiries Create View
@@ -72,6 +74,8 @@ class PartnerRegisterView(generics.CreateAPIView):
             partner_profile = user.partner_profile
             
             # Initialize Razorpay Client
+            from rest_framework.authtoken.models import Token
+            token, _ = Token.objects.get_or_create(user=user)
             try:
                 from .payments import get_razorpay_client
                 client = get_razorpay_client()
@@ -88,7 +92,8 @@ class PartnerRegisterView(generics.CreateAPIView):
                     "payment_capture": 1
                 }
                 if user.email.endswith('@test.com'):
-                    order = {'id': f"order_mock_{user.id}_{int(timezone.now().timestamp())}"}
+                    import random
+                    order = {'id': f"order_mock_{user.id}_{int(timezone.now().timestamp())}_{random.randint(1000, 9999)}"}
                 else:
                     order = client.order.create(data=order_data)
                 
@@ -104,6 +109,7 @@ class PartnerRegisterView(generics.CreateAPIView):
                     {
                         "success": True,
                         "message": "Registration saved. Complete payment to activate.",
+                        "token": token.key,
                         "user": {
                             "id": user.id,
                             "email": user.email,
@@ -124,6 +130,7 @@ class PartnerRegisterView(generics.CreateAPIView):
                     {
                         "success": True,
                         "message": f"Registration saved, but payment integration failed: {str(e)}",
+                        "token": token.key,
                         "user": {
                             "id": user.id,
                             "email": user.email,
@@ -230,9 +237,11 @@ class PaymentRetryView(generics.GenericAPIView):
             )
 
         # Check if they already have an active subscription (duplicate payment protection)
+        from rest_framework.authtoken.models import Token
+        token, _ = Token.objects.get_or_create(user=user)
         if hasattr(partner, 'subscription') and partner.subscription.is_active:
             return Response(
-                {"success": True, "message": "Partner already has an active subscription.", "already_active": True},
+                {"success": True, "message": "Partner already has an active subscription.", "already_active": True, "token": token.key},
                 status=status.HTTP_200_OK
             )
 
@@ -251,7 +260,8 @@ class PaymentRetryView(generics.GenericAPIView):
                 "payment_capture": 1
             }
             if user.email.endswith('@test.com'):
-                order = {'id': f"order_mock_{user.id}_{int(timezone.now().timestamp())}"}
+                import random
+                order = {'id': f"order_mock_{user.id}_{int(timezone.now().timestamp())}_{random.randint(1000, 9999)}"}
             else:
                 order = client.order.create(data=order_data)
             
@@ -268,6 +278,7 @@ class PaymentRetryView(generics.GenericAPIView):
                     "success": True,
                     "message": "New order created successfully.",
                     "already_active": False,
+                    "token": token.key,
                     "user": {
                         "id": user.id,
                         "email": user.email,
@@ -339,3 +350,151 @@ class AdminPartnerListView(generics.ListAPIView):
     queryset = User.objects.filter(partner_profile__isnull=False).order_by('-date_joined')
     serializer_class = PartnerAdminSerializer
     permission_classes = [IsAdminUser]
+
+
+# 11. Partner Auth check API
+class PartnerCheckAuthView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        try:
+            partner = request.user.partner_profile
+            has_active_sub = hasattr(partner, 'subscription') and partner.subscription.is_active
+            return Response({
+                "success": True,
+                "has_active_subscription": has_active_sub,
+                "user": {
+                    "email": request.user.email,
+                    "first_name": request.user.first_name,
+                    "last_name": request.user.last_name
+                }
+            }, status=status.HTTP_200_OK)
+        except PartnerProfile.DoesNotExist:
+            return Response({
+                "success": False,
+                "has_active_subscription": False,
+                "message": "User does not have a partner profile."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# 12. Partner Dashboard Overview
+class PartnerDashboardOverviewView(APIView):
+    permission_classes = [IsSubscribedPartner]
+    
+    def get(self, request, *args, **kwargs):
+        partner = request.user.partner_profile
+        sub = partner.subscription
+        
+        # Calculate days remaining
+        days_remaining = 0
+        if sub.expiry_date:
+            delta = sub.expiry_date - timezone.now()
+            days_remaining = max(0, delta.days)
+            
+        requests_qs = partner.candidate_requests.all()
+        pending_count = requests_qs.filter(status='pending').count()
+        approved_count = requests_qs.filter(status='approved').count()
+        
+        return Response({
+            "partner": {
+                "company_name": partner.company_name,
+                "name": f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
+                "email": request.user.email
+            },
+            "subscription": {
+                "plan_name": sub.plan_name,
+                "amount": str(sub.amount),
+                "is_active": sub.is_active,
+                "start_date": sub.start_date.isoformat() if sub.start_date else None,
+                "expiry_date": sub.expiry_date.isoformat() if sub.expiry_date else None,
+                "days_remaining": days_remaining
+            },
+            "metrics": {
+                "total_requests": requests_qs.count(),
+                "pending_requests": pending_count,
+                "approved_requests": approved_count
+            }
+        }, status=status.HTTP_200_OK)
+
+
+# 13. Partner Browse Candidates
+class PartnerCandidateListView(generics.ListAPIView):
+    serializer_class = CandidateSerializer
+    permission_classes = [IsSubscribedPartner]
+    
+    def get_queryset(self):
+        queryset = Candidate.objects.filter(status='available').order_by('-experience_years')
+        
+        job_role = self.request.query_params.get('job_role')
+        if job_role:
+            queryset = queryset.filter(job_role__iexact=job_role)
+            
+        location = self.request.query_params.get('location')
+        if location:
+            queryset = queryset.filter(location__icontains=location)
+            
+        experience = self.request.query_params.get('experience_years')
+        if experience:
+            try:
+                queryset = queryset.filter(experience_years__gte=int(experience))
+            except ValueError:
+                pass
+                
+        skills = self.request.query_params.get('skills')
+        if skills:
+            queryset = queryset.filter(skills__icontains=skills)
+            
+        return queryset
+
+
+# 14. Partner Candidate Detail
+class PartnerCandidateDetailView(generics.RetrieveAPIView):
+    queryset = Candidate.objects.filter(status='available')
+    serializer_class = CandidateSerializer
+    permission_classes = [IsSubscribedPartner]
+
+
+# 15. Partner Match Requests List & Create
+class PartnerCandidateRequestView(generics.ListCreateAPIView):
+    serializer_class = CandidateRequestSerializer
+    permission_classes = [IsSubscribedPartner]
+    
+    def get_queryset(self):
+        return CandidateRequest.objects.filter(partner=self.request.user.partner_profile).order_by('-created_at')
+        
+    def create(self, request, *args, **kwargs):
+        candidate_id = request.data.get('candidate')
+        request_notes = request.data.get('request_notes', '')
+        
+        if not candidate_id:
+            return Response({"candidate": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            candidate = Candidate.objects.get(id=candidate_id, status='available')
+        except Candidate.DoesNotExist:
+            return Response({"candidate": ["Candidate profile not found or unavailable."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        partner = request.user.partner_profile
+        
+        # Check if already requested
+        existing = CandidateRequest.objects.filter(partner=partner, candidate=candidate).first()
+        if existing:
+            return Response({"non_field_errors": ["You have already requested this candidate."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        req = CandidateRequest.objects.create(
+            partner=partner,
+            candidate=candidate,
+            request_notes=request_notes
+        )
+        serializer = self.get_serializer(req)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+# 16. Partner Profile View & Update
+class PartnerProfileUpdateView(generics.RetrieveUpdateAPIView):
+    serializer_class = PartnerProfileUpdateSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self):
+        return self.request.user.partner_profile
+
