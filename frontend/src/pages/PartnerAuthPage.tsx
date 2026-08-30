@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Card, Button, Input, Select, Alert } from '../components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
-import { registerPartner } from '../api/partners';
+import { registerPartner, verifyPartnerPayment, retryPartnerPayment } from '../api/partners';
 
 interface PartnerAuthPageProps {
   initialMode?: 'login' | 'register';
@@ -41,6 +41,8 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [paymentFailed, setPaymentFailed] = useState(false);
+  const [retryEmail, setRetryEmail] = useState('');
 
   // Sync mode with props if initialMode changes
   useEffect(() => {
@@ -98,6 +100,134 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
     setStep(1);
   };
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const triggerRazorpayCheckout = async (
+    razorpayOrderId: string,
+    razorpayKeyId: string,
+    amountPaise: number,
+    currency: string,
+    prefillName: string,
+    prefillEmail: string,
+    prefillPhone: string
+  ) => {
+    const loaded = await loadRazorpayScript();
+    if (!loaded) {
+      setErrors({ nonFieldErrors: 'Failed to load Razorpay SDK. Please check your internet connection.' });
+      setIsSubmitting(false);
+      return;
+    }
+
+    const options = {
+      key: razorpayKeyId,
+      amount: amountPaise,
+      currency: currency,
+      name: 'TheraLink',
+      description: '3-Year Recruitment Partner Plan',
+      order_id: razorpayOrderId,
+      handler: async function (response: any) {
+        setIsSubmitting(true);
+        verifyPartnerPayment({
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature
+        })
+        .then((res) => {
+          setIsSubmitting(false);
+          if (res.success) {
+            setIsSuccess(true);
+            setTimeout(() => {
+              navigate('/');
+            }, 2000);
+          } else {
+            setErrors({ nonFieldErrors: res.message || 'Payment verification failed.' });
+            setPaymentFailed(true);
+          }
+        })
+        .catch((err) => {
+          setIsSubmitting(false);
+          setErrors({ nonFieldErrors: err?.detail || err?.message || 'Payment verification failed.' });
+          setPaymentFailed(true);
+        });
+      },
+      prefill: {
+        name: prefillName,
+        email: prefillEmail,
+        contact: prefillPhone
+      },
+      theme: {
+        color: '#0d9488'
+      },
+      modal: {
+        ondismiss: function () {
+          setIsSubmitting(false);
+          setPaymentFailed(true);
+        }
+      }
+    };
+
+    const rzp = new (window as any).Razorpay(options);
+    rzp.on('payment.failed', function (response: any) {
+      setIsSubmitting(false);
+      setPaymentFailed(true);
+      setErrors({ nonFieldErrors: response.error.description || 'Payment failed.' });
+    });
+    rzp.open();
+  };
+
+  const handleRetryPayment = (e: FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+    if (!retryEmail.trim()) {
+      setErrors({ retryEmail: 'Email address is required to retry.' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    retryPartnerPayment({ email: retryEmail })
+    .then((res) => {
+      if (res.already_active) {
+        setIsSubmitting(false);
+        setIsSuccess(true);
+        setTimeout(() => {
+          navigate('/');
+        }, 2000);
+        return;
+      }
+      
+      if (res.razorpay_order_id && res.razorpay_key_id && res.amount_paise && res.currency && res.user) {
+        triggerRazorpayCheckout(
+          res.razorpay_order_id,
+          res.razorpay_key_id,
+          res.amount_paise,
+          res.currency,
+          `${res.user.first_name} ${res.user.last_name}`,
+          res.user.email,
+          res.user.phone_number
+        );
+      } else {
+        setIsSubmitting(false);
+        setErrors({ nonFieldErrors: 'Failed to initialize retry order details.' });
+      }
+    })
+    .catch((err) => {
+      setIsSubmitting(false);
+      setErrors({ nonFieldErrors: err?.detail || err?.message || 'Failed to locate registration or initialize payment.' });
+    });
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -150,12 +280,24 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
         website,
         country
       })
-      .then(() => {
-        setIsSubmitting(false);
-        setIsSuccess(true);
-        setTimeout(() => {
-          navigate('/');
-        }, 2000);
+      .then((res) => {
+        if (res.razorpay_order_id && res.razorpay_key_id && res.amount_paise && res.currency) {
+          triggerRazorpayCheckout(
+            res.razorpay_order_id,
+            res.razorpay_key_id,
+            res.amount_paise,
+            res.currency,
+            name,
+            email,
+            phoneNumber
+          );
+        } else {
+          setIsSubmitting(false);
+          setIsSuccess(true);
+          setTimeout(() => {
+            navigate('/');
+          }, 2000);
+        }
       })
       .catch((err: any) => {
         setIsSubmitting(false);
@@ -312,10 +454,69 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                     {mode === 'register' ? 'Registration Complete!' : 'Welcome Back!'}
                   </h4>
                   <p className="text-sm text-slate-600 mt-1">
-                    Simulating dashboard redirect to home page...
+                    {mode === 'register' ? 'Activating subscription and redirecting to homepage...' : 'Simulating dashboard redirect to home page...'}
                   </p>
                 </div>
               </motion.div>
+            ) : paymentFailed ? (
+              /* PAYMENT FAILED / RETRY VIEW */
+              <motion.form 
+                onSubmit={handleRetryPayment}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col gap-4 text-left"
+                key="payment-retry-form"
+              >
+                <div className="text-center mb-2">
+                  <h3 className="text-xl font-extrabold text-slate-900 font-display">Payment Pending</h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-normal">
+                    Your account details have been saved. Complete the subscription payment of ₹2,500 to activate your 3-year Recruitment Partner Plan.
+                  </p>
+                </div>
+
+                {errors.nonFieldErrors && (
+                  <Alert 
+                    variant="error"
+                    title="Payment Pending"
+                    icon={<AlertTriangle size={16} />}
+                    description={errors.nonFieldErrors}
+                  />
+                )}
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Registered Email Address</label>
+                  <Input 
+                    type="email"
+                    placeholder="e.g. partner@agency.com"
+                    value={retryEmail}
+                    onChange={(e) => setRetryEmail(e.target.value)}
+                    error={errors.retryEmail}
+                    icon={<Mail size={16} />}
+                    className={inputTealFocusClass}
+                    required
+                  />
+                </div>
+
+                <Button
+                  variant="teal"
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="py-3 shadow-md w-full justify-center mt-2 flex items-center gap-2"
+                >
+                  {isSubmitting ? 'Processing...' : 'Pay ₹2,500 Now'}
+                </Button>
+
+                <div className="text-center mt-2">
+                  <button 
+                    type="button"
+                    onClick={() => { setPaymentFailed(false); setErrors({}); }}
+                    className="text-xs text-slate-400 hover:text-slate-600 transition-all hover:underline cursor-pointer"
+                  >
+                    Go Back to Login / Registration
+                  </button>
+                </div>
+              </motion.form>
             ) : mode === 'login' ? (
               /* LOGIN VIEW */
               <motion.form 

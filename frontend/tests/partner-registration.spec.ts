@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Partner Registration Flow', () => {
+test.describe('Partner Registration Flow with Razorpay Payments', () => {
   test.beforeEach(async ({ page }) => {
     // Log console messages and errors from the browser
     page.on('console', msg => {
@@ -8,12 +8,53 @@ test.describe('Partner Registration Flow', () => {
     });
     page.on('pageerror', err => {
       console.error(`[BROWSER EXCEPTION]: ${err.message}`);
-      console.error(err.stack);
+    });
+
+    // Log all partner API requests and responses
+    page.on('request', request => {
+      if (request.url().includes('/partner/')) {
+        console.log(`[API REQUEST] URL: ${request.url()} Method: ${request.method()}`);
+      }
+    });
+    page.on('response', async response => {
+      if (response.url().includes('/partner/')) {
+        try {
+          const text = await response.text();
+          console.log(`[API RESPONSE] URL: ${response.url()} Status: ${response.status()} Body: ${text}`);
+        } catch (e) {
+          // ignore binary/uncacheable
+        }
+      }
+    });
+
+    // Mock window.Razorpay globally with state control
+    await page.addInitScript(() => {
+      (window as any).mockPaymentStatus = 'success';
+      (window as any).Razorpay = function (options: any) {
+        this.open = () => {
+          if ((window as any).mockPaymentStatus === 'success') {
+            console.log('[MOCK RAZORPAY] Modal opened. Triggering success callback...');
+            if (options.handler) {
+              options.handler({
+                razorpay_order_id: options.order_id,
+                razorpay_payment_id: 'pay_mock123',
+                razorpay_signature: 'sig_mock123'
+              });
+            }
+          } else {
+            console.log('[MOCK RAZORPAY] Modal opened. Simulating user dismiss/cancel...');
+            if (options.modal && options.modal.ondismiss) {
+              options.modal.ondismiss();
+            }
+          }
+        };
+        this.on = () => {};
+      };
     });
   });
 
-  test('should successfully register a partner and redirect to home', async ({ page }) => {
-    test.slow(); // Marks this test as slow, tripling the default timeout to accommodate SQLite write latencies.
+  test('should successfully register a partner, verify Razorpay payment, and redirect to home', async ({ page }) => {
+    test.slow();
     const uniqueEmail = `partner.${Date.now()}@test.com`;
 
     // 1. Go to register page
@@ -89,5 +130,45 @@ test.describe('Partner Registration Flow', () => {
     // Assert that we are returned to step 1 and the unique email validation error is displayed
     const emailError = page.locator('span.form-error-msg:has-text("A user with this email address already exists.")');
     await expect(emailError).toBeVisible({ timeout: 15000 });
+  });
+
+  test('should handle payment cancellation and allow retry with same email', async ({ page }) => {
+    test.slow();
+    const retryEmail = `retry.${Date.now()}@test.com`;
+
+    // 1. Go to register page
+    await page.goto('/partner/register');
+
+    // Toggle mock to cancel payment
+    await page.evaluate(() => {
+      (window as any).mockPaymentStatus = 'cancel';
+    });
+
+    // 2. Register first time
+    await page.fill('input[placeholder="Full Name"]', 'Retry User');
+    await page.fill('input[placeholder="Email Address"]', retryEmail);
+    await page.fill('input[placeholder="Phone Number"]', '9876543210');
+    await page.fill('input[placeholder="Password"]', 'password123');
+    await page.fill('input[placeholder="Confirm Password"]', 'password123');
+    await page.click('button:has-text("Next")');
+    await page.fill('input[placeholder="Company / Agency Name"]', 'Retry Agency');
+    await page.selectOption('select', { label: 'United Kingdom' });
+    await page.click('button:has-text("Next")');
+
+    // 3. Assert "Payment Pending" retry form card is visible
+    const retryHeader = page.locator('h3:has-text("Payment Pending")');
+    await expect(retryHeader).toBeVisible({ timeout: 15000 });
+
+    // 4. Update mock to trigger payment SUCCESS on retry
+    await page.evaluate(() => {
+      (window as any).mockPaymentStatus = 'success';
+    });
+
+    // 5. Fill and submit retry form
+    await page.fill('input[placeholder="e.g. partner@agency.com"]', retryEmail);
+    await page.click('button:has-text("Pay ₹2,500 Now")');
+
+    // 6. Assert success redirect to home
+    await expect(page).toHaveURL('/', { timeout: 15000 });
   });
 });
