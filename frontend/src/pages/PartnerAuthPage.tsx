@@ -1,12 +1,12 @@
 import type { ReactNode, FormEvent } from 'react';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Lock, 
-  Mail, 
-  User, 
-  Building2, 
-  CheckCircle2, 
+import {
+  Lock,
+  Mail,
+  User,
+  Building2,
+  CheckCircle2,
   AlertTriangle,
   ArrowLeft,
   Phone,
@@ -26,7 +26,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
   const location = useLocation();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [step, setStep] = useState<1 | 2>(1);
-  
+
   // Step 1 Form values
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -51,7 +51,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
     setMode(initialMode);
     setStep(1);
     setErrors({});
-    
+
     // Check if redirected from route guard with paymentPending flag
     if (location.state && (location.state as any).paymentPending) {
       setPaymentFailed(true);
@@ -155,23 +155,23 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
           razorpay_payment_id: response.razorpay_payment_id,
           razorpay_signature: response.razorpay_signature
         })
-        .then((res) => {
-          setIsSubmitting(false);
-          if (res.success) {
-            setIsSuccess(true);
-            setTimeout(() => {
-              navigate('/partner/dashboard');
-            }, 2000);
-          } else {
-            setErrors({ nonFieldErrors: res.message || 'Payment verification failed.' });
+          .then((res) => {
+            setIsSubmitting(false);
+            if (res.success) {
+              setIsSuccess(true);
+              setTimeout(() => {
+                navigate('/partner/dashboard');
+              }, 2000);
+            } else {
+              setErrors({ nonFieldErrors: res.message || 'Payment verification failed.' });
+              setPaymentFailed(true);
+            }
+          })
+          .catch((err) => {
+            setIsSubmitting(false);
+            setErrors({ nonFieldErrors: err?.detail || err?.message || 'Payment verification failed.' });
             setPaymentFailed(true);
-          }
-        })
-        .catch((err) => {
-          setIsSubmitting(false);
-          setErrors({ nonFieldErrors: err?.detail || err?.message || 'Payment verification failed.' });
-          setPaymentFailed(true);
-        });
+          });
       },
       prefill: {
         name: prefillName,
@@ -210,39 +210,39 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
     setIsSubmitting(true);
     retryPartnerPayment({ email: retryEmail })
-    .then((res) => {
-      if (res.token) {
-        localStorage.setItem('theralink_partner_token', res.token);
-        localStorage.setItem('theralink_partner_email', retryEmail);
-      }
-      if (res.already_active) {
+      .then((res) => {
+        if (res.token) {
+          localStorage.setItem('theralink_partner_token', res.token);
+          localStorage.setItem('theralink_partner_email', retryEmail);
+        }
+        if (res.already_active) {
+          setIsSubmitting(false);
+          setIsSuccess(true);
+          setTimeout(() => {
+            navigate('/partner/dashboard');
+          }, 2000);
+          return;
+        }
+
+        if (res.razorpay_order_id && res.razorpay_key_id && res.amount_paise && res.currency && res.user) {
+          triggerRazorpayCheckout(
+            res.razorpay_order_id,
+            res.razorpay_key_id,
+            res.amount_paise,
+            res.currency,
+            `${res.user.first_name} ${res.user.last_name}`,
+            res.user.email,
+            res.user.phone_number
+          );
+        } else {
+          setIsSubmitting(false);
+          setErrors({ nonFieldErrors: 'Failed to initialize retry order details.' });
+        }
+      })
+      .catch((err) => {
         setIsSubmitting(false);
-        setIsSuccess(true);
-        setTimeout(() => {
-          navigate('/partner/dashboard');
-        }, 2000);
-        return;
-      }
-      
-      if (res.razorpay_order_id && res.razorpay_key_id && res.amount_paise && res.currency && res.user) {
-        triggerRazorpayCheckout(
-          res.razorpay_order_id,
-          res.razorpay_key_id,
-          res.amount_paise,
-          res.currency,
-          `${res.user.first_name} ${res.user.last_name}`,
-          res.user.email,
-          res.user.phone_number
-        );
-      } else {
-        setIsSubmitting(false);
-        setErrors({ nonFieldErrors: 'Failed to initialize retry order details.' });
-      }
-    })
-    .catch((err) => {
-      setIsSubmitting(false);
-      setErrors({ nonFieldErrors: err?.detail || err?.message || 'Failed to locate registration or initialize payment.' });
-    });
+        setErrors({ nonFieldErrors: err?.detail || err?.message || 'Failed to locate registration or initialize payment.' });
+      });
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -268,50 +268,50 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
         method: 'POST',
         body: JSON.stringify({ username: email, password }),
       })
-      .then(async (res) => {
-        localStorage.setItem('theralink_partner_token', res.token);
-        localStorage.setItem('theralink_partner_email', email);
-        
-        try {
-          const authCheck = await checkPartnerAuth();
-          setIsSubmitting(false);
-          setIsSuccess(true);
-          
-          setTimeout(() => {
-            if (authCheck.has_active_subscription) {
-              navigate('/partner/dashboard');
-            } else {
+        .then(async (res) => {
+          localStorage.setItem('theralink_partner_token', res.token);
+          localStorage.setItem('theralink_partner_email', email);
+
+          try {
+            const authCheck = await checkPartnerAuth();
+            setIsSubmitting(false);
+            setIsSuccess(true);
+
+            setTimeout(() => {
+              if (authCheck.has_active_subscription) {
+                navigate('/partner/dashboard');
+              } else {
+                setPaymentFailed(true);
+                setRetryEmail(email);
+                setIsSuccess(false);
+              }
+            }, 2000);
+          } catch (e) {
+            setIsSubmitting(false);
+            setIsSuccess(true);
+            setTimeout(() => {
               setPaymentFailed(true);
               setRetryEmail(email);
               setIsSuccess(false);
-            }
-          }, 2000);
-        } catch (e) {
-          setIsSubmitting(false);
-          setIsSuccess(true);
-          setTimeout(() => {
-            setPaymentFailed(true);
-            setRetryEmail(email);
-            setIsSuccess(false);
-          }, 2000);
-        }
-      })
-      .catch((err) => {
-        setIsSubmitting(false);
-        const mappedErrors: Record<string, string> = {};
-        if (err && typeof err === 'object') {
-          if (err.non_field_errors) {
-            mappedErrors.nonFieldErrors = err.non_field_errors.join(' ');
-          } else if (err.detail) {
-            mappedErrors.nonFieldErrors = err.detail;
-          } else {
-            mappedErrors.nonFieldErrors = 'Invalid email or password. Please try again.';
+            }, 2000);
           }
-        } else {
-          mappedErrors.nonFieldErrors = 'A network error occurred. Please try again.';
-        }
-        setErrors(mappedErrors);
-      });
+        })
+        .catch((err) => {
+          setIsSubmitting(false);
+          const mappedErrors: Record<string, string> = {};
+          if (err && typeof err === 'object') {
+            if (err.non_field_errors) {
+              mappedErrors.nonFieldErrors = err.non_field_errors.join(' ');
+            } else if (err.detail) {
+              mappedErrors.nonFieldErrors = err.detail;
+            } else {
+              mappedErrors.nonFieldErrors = 'Invalid email or password. Please try again.';
+            }
+          } else {
+            mappedErrors.nonFieldErrors = 'A network error occurred. Please try again.';
+          }
+          setErrors(mappedErrors);
+        });
     } else {
       // Step 2 Final Submission
       const newErrors: Record<string, string> = {};
@@ -338,66 +338,66 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
         website,
         country
       })
-      .then((res) => {
-        if (res.token) {
-          localStorage.setItem('theralink_partner_token', res.token);
-          localStorage.setItem('theralink_partner_email', email);
-        }
-        if (res.razorpay_order_id && res.razorpay_key_id && res.amount_paise && res.currency) {
-          triggerRazorpayCheckout(
-            res.razorpay_order_id,
-            res.razorpay_key_id,
-            res.amount_paise,
-            res.currency,
-            name,
-            email,
-            phoneNumber
-          );
-        } else {
+        .then((res) => {
+          if (res.token) {
+            localStorage.setItem('theralink_partner_token', res.token);
+            localStorage.setItem('theralink_partner_email', email);
+          }
+          if (res.razorpay_order_id && res.razorpay_key_id && res.amount_paise && res.currency) {
+            triggerRazorpayCheckout(
+              res.razorpay_order_id,
+              res.razorpay_key_id,
+              res.amount_paise,
+              res.currency,
+              name,
+              email,
+              phoneNumber
+            );
+          } else {
+            setIsSubmitting(false);
+            setIsSuccess(true);
+            setTimeout(() => {
+              navigate('/partner/dashboard');
+            }, 2000);
+          }
+        })
+        .catch((err: any) => {
           setIsSubmitting(false);
-          setIsSuccess(true);
-          setTimeout(() => {
-            navigate('/partner/dashboard');
-          }, 2000);
-        }
-      })
-      .catch((err: any) => {
-        setIsSubmitting(false);
-        const mappedErrors: Record<string, string> = {};
-        if (err && typeof err === 'object') {
-          Object.entries(err).forEach(([field, messages]) => {
-            let msg = '';
-            if (Array.isArray(messages)) {
-              msg = messages[0];
-            } else if (typeof messages === 'string') {
-              msg = messages;
-            } else {
-              msg = JSON.stringify(messages);
-            }
+          const mappedErrors: Record<string, string> = {};
+          if (err && typeof err === 'object') {
+            Object.entries(err).forEach(([field, messages]) => {
+              let msg = '';
+              if (Array.isArray(messages)) {
+                msg = messages[0];
+              } else if (typeof messages === 'string') {
+                msg = messages;
+              } else {
+                msg = JSON.stringify(messages);
+              }
 
-            // Map backend snake_case key to frontend camelCase state key
-            if (field === 'phone_number') {
-              mappedErrors.phoneNumber = msg;
-            } else if (field === 'company_name') {
-              mappedErrors.companyName = msg;
-            } else if (field === 'confirm_password') {
-              mappedErrors.confirmPassword = msg;
-            } else {
-              mappedErrors[field] = msg;
-            }
-          });
-        } else {
-          mappedErrors.nonFieldErrors = 'Registration failed. Please try again.';
-        }
+              // Map backend snake_case key to frontend camelCase state key
+              if (field === 'phone_number') {
+                mappedErrors.phoneNumber = msg;
+              } else if (field === 'company_name') {
+                mappedErrors.companyName = msg;
+              } else if (field === 'confirm_password') {
+                mappedErrors.confirmPassword = msg;
+              } else {
+                mappedErrors[field] = msg;
+              }
+            });
+          } else {
+            mappedErrors.nonFieldErrors = 'Registration failed. Please try again.';
+          }
 
-        // If there are errors for step 1 fields, return to step 1
-        const step1Keys = ['name', 'email', 'phoneNumber', 'password', 'confirmPassword'];
-        const hasStep1Errors = Object.keys(mappedErrors).some(k => step1Keys.includes(k));
-        if (hasStep1Errors) {
-          setStep(1);
-        }
-        setErrors(mappedErrors);
-      });
+          // If there are errors for step 1 fields, return to step 1
+          const step1Keys = ['name', 'email', 'phoneNumber', 'password', 'confirmPassword'];
+          const hasStep1Errors = Object.keys(mappedErrors).some(k => step1Keys.includes(k));
+          if (hasStep1Errors) {
+            setStep(1);
+          }
+          setErrors(mappedErrors);
+        });
     }
   };
 
@@ -405,15 +405,14 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
   const inputTealFocusClass = "focus:border-accent-teal focus:ring-3 focus:ring-accent-teal/15";
 
   return (
-    <div className={`flex flex-col items-center justify-center relative text-left transition-all duration-300 ${
-      mode === 'register' && step === 1 && !isSuccess ? 'min-h-[500px] py-4 md:py-6' : 'min-h-[600px] py-12'
-    }`}>
-      
+    <div className={`flex flex-col items-center justify-center relative text-left transition-all duration-300 ${mode === 'register' && step === 1 && !isSuccess ? 'min-h-[500px] py-4 md:py-6' : 'min-h-[600px] py-12'
+      }`}>
+
       {/* Background ambient radial glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[400px] bg-[radial-gradient(ellipse_at_top,_var(--color-brand-blue-tint)_0%,rgba(255,255,255,0)_70%)] pointer-events-none -z-10" />
 
       {/* Back to Plans navigation */}
-      <button 
+      <button
         onClick={() => navigate('/recruitment-partner-plan')}
         className="absolute top-4 left-0 flex items-center gap-2 text-sm text-slate-500 hover:text-accent-teal transition-colors cursor-pointer"
       >
@@ -425,20 +424,16 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className={`w-full transition-all duration-300 ${
-          mode === 'register' && step === 1 && !isSuccess ? 'mt-2 md:mt-4' : 'mt-6'
-        } ${
-          mode === 'register' && !isSuccess ? 'max-w-md md:max-w-2xl' : 'max-w-md'
-        }`}
+        className={`w-full transition-all duration-300 ${mode === 'register' && step === 1 && !isSuccess ? 'mt-2 md:mt-4' : 'mt-6'
+          } ${mode === 'register' && !isSuccess ? 'max-w-md md:max-w-2xl' : 'max-w-md'
+          }`}
       >
-        <Card className={`bg-white border border-slate-100 rounded-2xl shadow-xl transition-all duration-300 ${
-          mode === 'register' && step === 1 && !isSuccess ? 'p-6' : 'p-8'
-        }`}>
-          
-          {/* Logo & Header */}
-          <div className={`text-center ${
-            mode === 'register' && step === 1 && !isSuccess ? 'mb-3 md:mb-4' : 'mb-6'
+        <Card className={`bg-white border border-slate-100 rounded-2xl shadow-xl transition-all duration-300 ${mode === 'register' && step === 1 && !isSuccess ? 'p-6' : 'p-8'
           }`}>
+
+          {/* Logo & Header */}
+          <div className={`text-center ${mode === 'register' && step === 1 && !isSuccess ? 'mb-3 md:mb-4' : 'mb-6'
+            }`}>
             <span className="font-display font-black text-2xl">
               Thera<span className="text-brand-blue">Link</span>
             </span>
@@ -446,33 +441,31 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
           {/* Stepper progress bar line for registration */}
           {mode === 'register' && !isSuccess && (
-            <div className={`relative flex justify-between items-center max-w-[200px] mx-auto ${
-              step === 1 ? 'mb-4 md:mb-5' : 'mb-8'
-            }`}>
+            <div className={`relative flex justify-between items-center max-w-[200px] mx-auto ${step === 1 ? 'mb-4 md:mb-5' : 'mb-8'
+              }`}>
               {/* Progress Line Background */}
               <div className="absolute left-0 right-0 top-1/2 -translate-x-0 -translate-y-1/2 h-0.5 bg-slate-100" style={{ transform: 'translateY(-50%)' }} />
               {/* Progress Line Fill */}
-              <div 
-                className="absolute left-0 top-1/2 -translate-x-0 -translate-y-1/2 h-0.5 bg-accent-teal transition-all duration-300" 
-                style={{ 
+              <div
+                className="absolute left-0 top-1/2 -translate-x-0 -translate-y-1/2 h-0.5 bg-accent-teal transition-all duration-300"
+                style={{
                   width: step === 2 ? '100%' : '0%',
                   backgroundColor: 'var(--color-accent-teal)',
                   transform: 'translateY(-50%)'
-                }} 
+                }}
               />
               {/* Step 1 Circle */}
-              <div 
+              <div
                 className="relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white transition-all duration-300 shadow-xs"
                 style={{ backgroundColor: 'var(--color-accent-teal)' }}
               >
                 1
               </div>
               {/* Step 2 Circle */}
-              <div 
-                className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-300 shadow-xs ${
-                  step === 2 ? 'text-white' : 'bg-slate-200 text-slate-500'
-                }`}
-                style={{ 
+              <div
+                className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-300 shadow-xs ${step === 2 ? 'text-white' : 'bg-slate-200 text-slate-500'
+                  }`}
+                style={{
                   backgroundColor: step === 2 ? 'var(--color-accent-teal)' : ''
                 }}
               >
@@ -522,7 +515,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
               </motion.div>
             ) : paymentFailed ? (
               /* PAYMENT FAILED / RETRY VIEW */
-              <motion.form 
+              <motion.form
                 onSubmit={handleRetryPayment}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -538,7 +531,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                 </div>
 
                 {errors.nonFieldErrors && (
-                  <Alert 
+                  <Alert
                     variant="error"
                     title="Payment Pending"
                     icon={<AlertTriangle size={16} />}
@@ -548,7 +541,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Registered Email Address</label>
-                  <Input 
+                  <Input
                     type="email"
                     placeholder="e.g. partner@agency.com"
                     value={retryEmail}
@@ -570,7 +563,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                 </Button>
 
                 <div className="text-center mt-2">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => { setPaymentFailed(false); setErrors({}); }}
                     className="text-xs text-slate-400 hover:text-slate-600 transition-all hover:underline cursor-pointer"
@@ -581,7 +574,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
               </motion.form>
             ) : mode === 'login' ? (
               /* LOGIN VIEW */
-              <motion.form 
+              <motion.form
                 onSubmit={handleSubmit}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -590,7 +583,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                 key="login-form"
               >
                 {Object.keys(errors).length > 0 && (
-                  <Alert 
+                  <Alert
                     variant="error"
                     title="Please fix errors below"
                     icon={<AlertTriangle size={16} />}
@@ -600,7 +593,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Email Address</label>
-                  <Input 
+                  <Input
                     type="email"
                     placeholder="e.g. john@org.com"
                     value={email}
@@ -613,7 +606,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Password</label>
-                  <Input 
+                  <Input
                     type="password"
                     placeholder="••••••••"
                     value={password}
@@ -626,8 +619,8 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                 <div className="flex justify-between items-center py-1">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       className="accent-accent-teal rounded cursor-pointer"
                     />
                     <span className="text-xs text-slate-500">Remember me</span>
@@ -648,7 +641,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                 <div className="text-center mt-4">
                   <span className="text-xs text-slate-500">Don't have an account? </span>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => { setMode('register'); setStep(1); setErrors({}); }}
                     className="text-xs text-accent-teal font-semibold hover:underline cursor-pointer"
@@ -674,7 +667,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                 </div>
 
                 {errors.nonFieldErrors && (
-                  <Alert 
+                  <Alert
                     variant="error"
                     title="Registration failed"
                     icon={<AlertTriangle size={16} />}
@@ -684,7 +677,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 mt-2 md:mt-3 text-left">
                   <div className="md:col-span-2">
-                    <Input 
+                    <Input
                       type="text"
                       placeholder="Full Name"
                       value={name}
@@ -696,7 +689,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   </div>
 
                   <div className="md:col-span-1">
-                    <Input 
+                    <Input
                       type="email"
                       placeholder="Email Address"
                       value={email}
@@ -708,7 +701,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   </div>
 
                   <div className="md:col-span-1">
-                    <Input 
+                    <Input
                       type="tel"
                       placeholder="Phone Number"
                       value={phoneNumber}
@@ -720,7 +713,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   </div>
 
                   <div className="md:col-span-1">
-                    <Input 
+                    <Input
                       type="password"
                       placeholder="Password"
                       value={password}
@@ -732,7 +725,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   </div>
 
                   <div className="md:col-span-1">
-                    <Input 
+                    <Input
                       type="password"
                       placeholder="Confirm Password"
                       value={confirmPassword}
@@ -746,7 +739,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                 <div className="text-center mt-1 md:mt-2">
                   <span className="text-xs text-slate-500">Already have an account? </span>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => { setMode('login'); setErrors({}); }}
                     className="text-xs text-accent-teal font-semibold hover:underline cursor-pointer"
@@ -789,7 +782,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                 </div>
 
                 {errors.nonFieldErrors && (
-                  <Alert 
+                  <Alert
                     variant="error"
                     title="Registration failed"
                     icon={<AlertTriangle size={16} />}
@@ -799,7 +792,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 mt-4 text-left">
                   <div className="md:col-span-1">
-                    <Input 
+                    <Input
                       type="text"
                       placeholder="Company / Agency Name"
                       value={companyName}
@@ -811,7 +804,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   </div>
 
                   <div className="md:col-span-1">
-                    <Input 
+                    <Input
                       type="text"
                       placeholder="Website (Optional)"
                       value={website}
@@ -823,7 +816,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
                   <div className="md:col-span-2">
                     <div className="flex flex-col gap-1">
-                      <Select 
+                      <Select
                         label="Country"
                         options={countryOptions}
                         value={country}
