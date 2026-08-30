@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Card, Button, Input, Select, Alert } from '../components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
+import { registerPartner } from '../api/partners';
 
 interface PartnerAuthPageProps {
   initialMode?: 'login' | 'register';
@@ -138,15 +139,61 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
         return;
       }
 
-      // Simulate registration
       setIsSubmitting(true);
-      setTimeout(() => {
+      registerPartner({
+        name,
+        email,
+        phone_number: phoneNumber,
+        password,
+        confirm_password: confirmPassword,
+        company_name: companyName,
+        website,
+        country
+      })
+      .then(() => {
         setIsSubmitting(false);
         setIsSuccess(true);
         setTimeout(() => {
           navigate('/');
         }, 2000);
-      }, 1200);
+      })
+      .catch((err: any) => {
+        setIsSubmitting(false);
+        const mappedErrors: Record<string, string> = {};
+        if (err && typeof err === 'object') {
+          Object.entries(err).forEach(([field, messages]) => {
+            let msg = '';
+            if (Array.isArray(messages)) {
+              msg = messages[0];
+            } else if (typeof messages === 'string') {
+              msg = messages;
+            } else {
+              msg = JSON.stringify(messages);
+            }
+
+            // Map backend snake_case key to frontend camelCase state key
+            if (field === 'phone_number') {
+              mappedErrors.phoneNumber = msg;
+            } else if (field === 'company_name') {
+              mappedErrors.companyName = msg;
+            } else if (field === 'confirm_password') {
+              mappedErrors.confirmPassword = msg;
+            } else {
+              mappedErrors[field] = msg;
+            }
+          });
+        } else {
+          mappedErrors.nonFieldErrors = 'Registration failed. Please try again.';
+        }
+
+        // If there are errors for step 1 fields, return to step 1
+        const step1Keys = ['name', 'email', 'phoneNumber', 'password', 'confirmPassword'];
+        const hasStep1Errors = Object.keys(mappedErrors).some(k => step1Keys.includes(k));
+        if (hasStep1Errors) {
+          setStep(1);
+        }
+        setErrors(mappedErrors);
+      });
     }
   };
 
@@ -363,6 +410,15 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   <p className="text-sm text-slate-500 mt-1">Join as a Recruitment Partner</p>
                 </div>
 
+                {errors.nonFieldErrors && (
+                  <Alert 
+                    variant="error"
+                    title="Registration failed"
+                    icon={<AlertTriangle size={16} />}
+                    description={errors.nonFieldErrors}
+                  />
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 mt-2 md:mt-3 text-left">
                   <div className="md:col-span-2">
                     <Input 
@@ -468,6 +524,15 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   <h3 className="text-2xl font-extrabold text-slate-900 font-display">Tell us about your company</h3>
                   <p className="text-sm text-slate-500 mt-1">This information helps us know you better</p>
                 </div>
+
+                {errors.nonFieldErrors && (
+                  <Alert 
+                    variant="error"
+                    title="Registration failed"
+                    icon={<AlertTriangle size={16} />}
+                    description={errors.nonFieldErrors}
+                  />
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 mt-4 text-left">
                   <div className="md:col-span-1">

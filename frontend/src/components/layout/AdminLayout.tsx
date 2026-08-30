@@ -9,13 +9,14 @@ import {
   Menu, 
   X, 
   Shield,
-  User
+  User,
+  Users
 } from 'lucide-react';
 
 export interface AdminLayoutProps {
   children: ReactNode;
-  activeTab: 'inquiries' | 'vacancies';
-  setActiveTab: (tab: 'inquiries' | 'vacancies') => void;
+  activeTab: 'inquiries' | 'vacancies' | 'partners';
+  setActiveTab: (tab: 'inquiries' | 'vacancies' | 'partners') => void;
 }
 
 export function AdminLayout({ children, activeTab, setActiveTab }: AdminLayoutProps): ReactNode {
@@ -55,9 +56,14 @@ export function AdminLayout({ children, activeTab, setActiveTab }: AdminLayoutPr
       label: 'Vacancies',
       icon: <Briefcase size={20} />,
     },
+    {
+      id: 'partners' as const,
+      label: 'Partners',
+      icon: <Users size={20} />,
+    },
   ];
 
-  const handleNavClick = (tabId: 'inquiries' | 'vacancies') => {
+  const handleNavClick = (tabId: 'inquiries' | 'vacancies' | 'partners') => {
     setActiveTab(tabId);
     setMobileMenuOpen(false);
   };
