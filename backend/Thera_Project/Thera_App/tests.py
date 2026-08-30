@@ -3,7 +3,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
-from .models import Inquiry, Vacancy
+from .models import Inquiry, Vacancy, PartnerProfile
 from django.utils import timezone
 
 class InquiryAPITests(APITestCase):
@@ -150,3 +150,114 @@ class VacancyAPITests(APITestCase):
         response = self.client.post(admin_vacancies_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Vacancy.objects.filter(slug='behavioral-therapist').count(), 1)
+
+
+class PartnerRegistrationAPITests(APITestCase):
+    def setUp(self):
+        self.register_url = reverse('partner-register')
+
+    def test_register_partner_success(self):
+        data = {
+            'name': 'John Doe',
+            'email': 'john@partner.com',
+            'phone_number': '1234567890',
+            'password': 'password123',
+            'confirm_password': 'password123',
+            'company_name': 'Global Recruitment Ltd',
+            'website': 'https://globalrec.com',
+            'country': 'United Kingdom'
+        }
+        response = self.client.post(self.register_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(User.objects.filter(email='john@partner.com').exists())
+        user = User.objects.get(email='john@partner.com')
+        self.assertEqual(user.first_name, 'John')
+        self.assertEqual(user.last_name, 'Doe')
+        self.assertEqual(user.partner_profile.company_name, 'Global Recruitment Ltd')
+        self.assertEqual(user.partner_profile.phone_number, '1234567890')
+        self.assertEqual(user.partner_profile.website, 'https://globalrec.com')
+        self.assertEqual(user.partner_profile.country, 'United Kingdom')
+
+    def test_register_partner_password_mismatch(self):
+        data = {
+            'name': 'John Doe',
+            'email': 'john@partner.com',
+            'phone_number': '1234567890',
+            'password': 'password123',
+            'confirm_password': 'different_password',
+            'company_name': 'Global Recruitment Ltd',
+            'website': 'https://globalrec.com',
+            'country': 'United Kingdom'
+        }
+        response = self.client.post(self.register_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('confirm_password', response.data)
+
+    def test_register_partner_duplicate_email(self):
+        # Create existing user
+        User.objects.create_user(username='existing@partner.com', email='existing@partner.com', password='password123')
+        data = {
+            'name': 'Another User',
+            'email': 'existing@partner.com',
+            'phone_number': '1234567890',
+            'password': 'password123',
+            'confirm_password': 'password123',
+            'company_name': 'Another Agency',
+            'website': '',
+            'country': 'India'
+        }
+        response = self.client.post(self.register_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('email', response.data)
+
+
+class AdminPartnerListViewTests(APITestCase):
+    def setUp(self):
+        self.list_url = reverse('admin-partners-list')
+        
+        # Create standard user with partner profile
+        self.partner_user = User.objects.create_user(
+            username='partner@test.com',
+            email='partner@test.com',
+            password='password123',
+            first_name='Jane',
+            last_name='Partner'
+        )
+        self.profile = PartnerProfile.objects.create(
+            user=self.partner_user,
+            phone_number='1234567890',
+            company_name='Partner Agency Inc.',
+            website='https://partneragency.com',
+            country='Canada'
+        )
+        
+        # Create token for authentication
+        self.partner_token, _ = Token.objects.get_or_create(user=self.partner_user)
+        
+        # Create staff user
+        self.staff_user = User.objects.create_superuser(
+            username='admin@test.com',
+            email='admin@test.com',
+            password='password123'
+        )
+        self.staff_token, _ = Token.objects.get_or_create(user=self.staff_user)
+
+    def test_list_partners_unauthenticated(self):
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_partners_non_staff_forbidden(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.partner_token.key)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_list_partners_staff_success(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.staff_token.key)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['company_name'], 'Partner Agency Inc.')
+        self.assertEqual(response.data[0]['name'], 'Jane Partner')
+        self.assertEqual(response.data[0]['country'], 'Canada')
+
+

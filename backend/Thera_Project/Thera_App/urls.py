@@ -6,7 +6,9 @@ from .views import (
     VacancyListView,
     AdminInquiryViewSet,
     AdminVacancyViewSet,
-    health_check_view
+    health_check_view,
+    PartnerRegisterView,
+    AdminPartnerListView
 )
 
 router = DefaultRouter()
@@ -18,5 +20,7 @@ urlpatterns = [
     path('vacancies/', VacancyListView.as_view(), name='vacancy-list'),
     path('auth/login/', obtain_auth_token, name='auth-login'),
     path('health/', health_check_view, name='health-check'),
+    path('partner/register/', PartnerRegisterView.as_view(), name='partner-register'),
+    path('admin/partners/', AdminPartnerListView.as_view(), name='admin-partners-list'),
     path('', include(router.urls)),
 ]

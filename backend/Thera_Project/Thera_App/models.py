@@ -98,3 +98,21 @@ class Inquiry(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.get_inquiry_type_display()} ({self.status})"
+
+
+class PartnerProfile(models.Model):
+    user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='partner_profile')
+    phone_number = models.CharField(max_length=50)
+    company_name = models.CharField(max_length=255)
+    website = models.CharField(max_length=255, blank=True, null=True)
+    country = models.CharField(max_length=100, default='India')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Recruitment Partner Details"
+        verbose_name_plural = "Recruitment Partner Details"
+
+    def __str__(self):
+        return f"{self.company_name} ({self.user.email})"
+

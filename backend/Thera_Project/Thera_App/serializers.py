@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Inquiry, Vacancy
+from django.contrib.auth.models import User
+from .models import Inquiry, Vacancy, PartnerProfile
 
 class VacancySerializer(serializers.ModelSerializer):
     class Meta:
@@ -55,3 +56,77 @@ class InquiryAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Inquiry
         fields = '__all__'
+
+
+class PartnerRegisterSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+    phone_number = serializers.CharField(max_length=50)
+    password = serializers.CharField(write_only=True, min_length=6)
+    confirm_password = serializers.CharField(write_only=True)
+    company_name = serializers.CharField(max_length=255)
+    website = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
+    country = serializers.CharField(max_length=100, default='India')
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with this email address already exists.")
+        return value
+
+    def validate(self, data):
+        if data['password'] != data['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return data
+
+    def create(self, validated_data):
+        name = validated_data['name']
+        email = validated_data['email']
+        password = validated_data['password']
+        phone_number = validated_data['phone_number']
+        company_name = validated_data['company_name']
+        website = validated_data.get('website', '') or ''
+        country = validated_data.get('country', 'India')
+
+        # Split name into first and last name
+        name_parts = name.strip().split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+        # Create standard Django user using email as username
+        username = email.lower()
+        user = User.objects.create_user(
+            username=username,
+            email=email.lower(),
+            password=password,
+            first_name=first_name,
+            last_name=last_name
+        )
+
+        # Create associated partner profile details
+        PartnerProfile.objects.create(
+            user=user,
+            phone_number=phone_number,
+            company_name=company_name,
+            website=website,
+            country=country
+        )
+
+        return user
+
+
+class PartnerAdminSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    phone_number = serializers.CharField(source='partner_profile.phone_number')
+    company_name = serializers.CharField(source='partner_profile.company_name')
+    website = serializers.CharField(source='partner_profile.website', allow_null=True, required=False)
+    country = serializers.CharField(source='partner_profile.country')
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'name', 'email', 'date_joined',
+            'phone_number', 'company_name', 'website', 'country'
+        ]
+
+    def get_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}".strip() or obj.username
