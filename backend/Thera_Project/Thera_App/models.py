@@ -116,3 +116,47 @@ class PartnerProfile(models.Model):
     def __str__(self):
         return f"{self.company_name} ({self.user.email})"
 
+
+class PartnerSubscription(models.Model):
+    partner = models.OneToOneField(PartnerProfile, on_delete=models.CASCADE, related_name='subscription')
+    plan_name = models.CharField(max_length=100, default='3-Year Partner Plan')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=2500.00)
+    is_active = models.BooleanField(default=False)
+    start_date = models.DateTimeField(blank=True, null=True)
+    expiry_date = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Recruitment Partner Subscription"
+        verbose_name_plural = "Recruitment Partner Subscriptions"
+
+    def __str__(self):
+        return f"{self.partner.company_name} - {self.plan_name} (Active: {self.is_active})"
+
+
+class RazorpayPayment(models.Model):
+    STATUS_CHOICES = [
+        ('created', 'Created'),
+        ('captured', 'Captured'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
+    ]
+
+    partner = models.ForeignKey(PartnerProfile, on_delete=models.CASCADE, related_name='payments')
+    order_id = models.CharField(max_length=255, unique=True)
+    payment_id = models.CharField(max_length=255, blank=True, null=True)
+    signature = models.CharField(max_length=255, blank=True, null=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=2500.00)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Razorpay Payment Log"
+        verbose_name_plural = "Razorpay Payment Logs"
+
+    def __str__(self):
+        return f"Order: {self.order_id} ({self.status})"
+
+

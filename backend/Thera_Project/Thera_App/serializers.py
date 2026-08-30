@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Inquiry, Vacancy, PartnerProfile
+from .models import Inquiry, Vacancy, PartnerProfile, PartnerSubscription, RazorpayPayment
 
 class VacancySerializer(serializers.ModelSerializer):
     class Meta:
@@ -130,3 +130,14 @@ class PartnerAdminSerializer(serializers.ModelSerializer):
 
     def get_name(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip() or obj.username
+
+
+class PaymentVerifySerializer(serializers.Serializer):
+    razorpay_order_id = serializers.CharField(max_length=255)
+    razorpay_payment_id = serializers.CharField(max_length=255)
+    razorpay_signature = serializers.CharField(max_length=255)
+
+
+class PaymentRetrySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+

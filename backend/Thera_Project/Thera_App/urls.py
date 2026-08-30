@@ -8,7 +8,10 @@ from .views import (
     AdminVacancyViewSet,
     health_check_view,
     PartnerRegisterView,
-    AdminPartnerListView
+    AdminPartnerListView,
+    PaymentVerifyView,
+    PaymentRetryView,
+    RazorpayWebhookView
 )
 
 router = DefaultRouter()
@@ -21,6 +24,10 @@ urlpatterns = [
     path('auth/login/', obtain_auth_token, name='auth-login'),
     path('health/', health_check_view, name='health-check'),
     path('partner/register/', PartnerRegisterView.as_view(), name='partner-register'),
+    path('partner/payment/verify/', PaymentVerifyView.as_view(), name='partner-payment-verify'),
+    path('partner/payment/retry/', PaymentRetryView.as_view(), name='partner-payment-retry'),
+    path('partner/payment/webhook/', RazorpayWebhookView.as_view(), name='partner-payment-webhook'),
     path('admin/partners/', AdminPartnerListView.as_view(), name='admin-partners-list'),
     path('', include(router.urls)),
 ]
+

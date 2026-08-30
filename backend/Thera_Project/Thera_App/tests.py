@@ -2,8 +2,9 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import User
+from unittest.mock import patch, MagicMock
 from rest_framework.authtoken.models import Token
-from .models import Inquiry, Vacancy, PartnerProfile
+from .models import Inquiry, Vacancy, PartnerProfile, PartnerSubscription, RazorpayPayment
 from django.utils import timezone
 
 class InquiryAPITests(APITestCase):
@@ -259,5 +260,110 @@ class AdminPartnerListViewTests(APITestCase):
         self.assertEqual(response.data[0]['company_name'], 'Partner Agency Inc.')
         self.assertEqual(response.data[0]['name'], 'Jane Partner')
         self.assertEqual(response.data[0]['country'], 'Canada')
+
+
+class RazorpayIntegrationTests(APITestCase):
+    def setUp(self):
+        self.register_url = reverse('partner-register')
+        self.verify_url = reverse('partner-payment-verify')
+        self.retry_url = reverse('partner-payment-retry')
+        self.webhook_url = reverse('partner-payment-webhook')
+
+    @patch('razorpay.Client')
+    def test_register_partner_creates_razorpay_order(self, mock_razorpay_client):
+        # Configure mock order response
+        mock_order = MagicMock()
+        mock_order.create.return_value = {'id': 'order_test123'}
+        mock_razorpay_client.return_value.order = mock_order
+
+        data = {
+            'name': 'Jane Partner',
+            'email': 'jane@partner.com',
+            'phone_number': '9876543210',
+            'password': 'password123',
+            'confirm_password': 'password123',
+            'company_name': 'Jane Recruiting Agency',
+            'website': 'https://jane.com',
+            'country': 'Canada'
+        }
+        response = self.client.post(self.register_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['razorpay_order_id'], 'order_test123')
+        
+        # Verify db log
+        payment = RazorpayPayment.objects.get(order_id='order_test123')
+        self.assertEqual(payment.status, 'created')
+
+    @patch('razorpay.Client')
+    def test_payment_verification_success(self, mock_razorpay_client):
+        # Configure mock verify response (raises no error)
+        mock_razorpay_client.return_value.utility.verify_payment_signature.return_value = True
+
+        # Precreate partner and payment order log
+        user = User.objects.create_user(username='test_user@test.com', email='test_user@test.com', password='password123')
+        partner = PartnerProfile.objects.create(user=user, phone_number='123', company_name='A1')
+        payment = RazorpayPayment.objects.create(partner=partner, order_id='order_test123', amount=2500)
+
+        verify_data = {
+            'razorpay_order_id': 'order_test123',
+            'razorpay_payment_id': 'pay_test123',
+            'razorpay_signature': 'sig_test123'
+        }
+        response = self.client.post(self.verify_url, verify_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verify status captured and subscription active
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, 'captured')
+        self.assertEqual(payment.payment_id, 'pay_test123')
+        
+        sub = PartnerSubscription.objects.get(partner=partner)
+        self.assertTrue(sub.is_active)
+        self.assertIsNotNone(sub.expiry_date)
+
+    @patch('razorpay.Client')
+    def test_payment_verification_failed_signature(self, mock_razorpay_client):
+        # Make signature verification raise an exception
+        from razorpay.errors import SignatureVerificationError
+        mock_razorpay_client.return_value.utility.verify_payment_signature.side_effect = SignatureVerificationError('Invalid signature')
+
+        user = User.objects.create_user(username='test_user@test.com', email='test_user@test.com', password='password123')
+        partner = PartnerProfile.objects.create(user=user, phone_number='123', company_name='A1')
+        payment = RazorpayPayment.objects.create(partner=partner, order_id='order_test123', amount=2500)
+
+        verify_data = {
+            'razorpay_order_id': 'order_test123',
+            'razorpay_payment_id': 'pay_test123',
+            'razorpay_signature': 'sig_test123'
+        }
+        response = self.client.post(self.verify_url, verify_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, 'failed')
+
+    @patch('razorpay.Client')
+    def test_payment_retry_generates_new_order(self, mock_razorpay_client):
+        mock_order = MagicMock()
+        mock_order.create.return_value = {'id': 'order_retry123'}
+        mock_razorpay_client.return_value.order = mock_order
+
+        user = User.objects.create_user(username='test_user@test.com', email='test_user@test.com', password='password123')
+        partner = PartnerProfile.objects.create(user=user, phone_number='123', company_name='A1')
+
+        response = self.client.post(self.retry_url, {'email': 'test_user@test.com'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['razorpay_order_id'], 'order_retry123')
+        self.assertFalse(response.data['already_active'])
+
+    def test_payment_retry_already_active_subscription(self):
+        user = User.objects.create_user(username='test_user@test.com', email='test_user@test.com', password='password123')
+        partner = PartnerProfile.objects.create(user=user, phone_number='123', company_name='A1')
+        sub = PartnerSubscription.objects.create(partner=partner, is_active=True)
+
+        response = self.client.post(self.retry_url, {'email': 'test_user@test.com'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['already_active'])
+
 
 

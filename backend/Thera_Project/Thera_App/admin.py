@@ -15,7 +15,7 @@ admin.site.unregister(User)
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     inlines = (PartnerProfileInline,)
-    list_display = BaseUserAdmin.list_display + ('get_company_name', 'get_phone_number')
+    list_display = BaseUserAdmin.list_display + ('get_company_name', 'get_phone_number', 'get_payment_status', 'get_razorpay_order_id', 'get_subscription_status')
     search_fields = BaseUserAdmin.search_fields + ('partner_profile__company_name', 'partner_profile__phone_number')
     list_filter = BaseUserAdmin.list_filter + ('date_joined',)
 
@@ -32,6 +32,33 @@ class UserAdmin(BaseUserAdmin):
         except PartnerProfile.DoesNotExist:
             return '-'
     get_phone_number.short_description = 'Phone Number'
+
+    def get_payment_status(self, obj):
+        try:
+            payment = obj.partner_profile.payments.order_by('-created_at').first()
+            return payment.status if payment else 'No Payment'
+        except (AttributeError, PartnerProfile.DoesNotExist):
+            return '-'
+    get_payment_status.short_description = 'Payment Status'
+
+    def get_razorpay_order_id(self, obj):
+        try:
+            payment = obj.partner_profile.payments.order_by('-created_at').first()
+            return payment.order_id if payment else '-'
+        except (AttributeError, PartnerProfile.DoesNotExist):
+            return '-'
+    get_razorpay_order_id.short_description = 'Razorpay Order ID'
+
+    def get_subscription_status(self, obj):
+        try:
+            sub = obj.partner_profile.subscription
+            if sub.is_active:
+                return f"Active (Exp: {sub.expiry_date.strftime('%Y-%m-%d')})"
+            return "Inactive"
+        except (AttributeError, PartnerProfile.DoesNotExist):
+            return '-'
+    get_subscription_status.short_description = 'Subscription Status'
+
 
 @admin.register(Vacancy)
 class VacancyAdmin(admin.ModelAdmin):
