@@ -154,7 +154,9 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
   const inputTealFocusClass = "focus:border-accent-teal focus:ring-3 focus:ring-accent-teal/15";
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[600px] py-12 relative text-left">
+    <div className={`flex flex-col items-center justify-center relative text-left transition-all duration-300 ${
+      mode === 'register' && step === 1 && !isSuccess ? 'min-h-[500px] py-4 md:py-6' : 'min-h-[600px] py-12'
+    }`}>
       
       {/* Background ambient radial glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[400px] bg-[radial-gradient(ellipse_at_top,_var(--color-brand-blue-tint)_0%,rgba(255,255,255,0)_70%)] pointer-events-none -z-10" />
@@ -172,12 +174,20 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-md mt-6"
+        className={`w-full transition-all duration-300 ${
+          mode === 'register' && step === 1 && !isSuccess ? 'mt-2 md:mt-4' : 'mt-6'
+        } ${
+          mode === 'register' && !isSuccess ? 'max-w-md md:max-w-2xl' : 'max-w-md'
+        }`}
       >
-        <Card className="p-8 bg-white border border-slate-100 rounded-2xl shadow-xl">
+        <Card className={`bg-white border border-slate-100 rounded-2xl shadow-xl transition-all duration-300 ${
+          mode === 'register' && step === 1 && !isSuccess ? 'p-6' : 'p-8'
+        }`}>
           
           {/* Logo & Header */}
-          <div className="text-center mb-6">
+          <div className={`text-center ${
+            mode === 'register' && step === 1 && !isSuccess ? 'mb-3 md:mb-4' : 'mb-6'
+          }`}>
             <span className="font-display font-black text-2xl">
               Thera<span className="text-brand-blue">Link</span>
             </span>
@@ -185,7 +195,9 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
 
           {/* Stepper progress bar line for registration */}
           {mode === 'register' && !isSuccess && (
-            <div className="relative flex justify-between items-center max-w-[200px] mx-auto mb-8">
+            <div className={`relative flex justify-between items-center max-w-[200px] mx-auto ${
+              step === 1 ? 'mb-4 md:mb-5' : 'mb-8'
+            }`}>
               {/* Progress Line Background */}
               <div className="absolute left-0 right-0 top-1/2 -translate-x-0 -translate-y-1/2 h-0.5 bg-slate-100" style={{ transform: 'translateY(-50%)' }} />
               {/* Progress Line Fill */}
@@ -343,7 +355,7 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
-                className="flex flex-col gap-4 text-center"
+                className="flex flex-col gap-2.5 md:gap-3 text-center"
                 key="step-1"
               >
                 <div>
@@ -351,59 +363,69 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   <p className="text-sm text-slate-500 mt-1">Join as a Recruitment Partner</p>
                 </div>
 
-                <div className="flex flex-col gap-3 mt-4 text-left">
-                  <Input 
-                    type="text"
-                    placeholder="Full Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    error={errors.name}
-                    icon={<User size={16} />}
-                    className={inputTealFocusClass}
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 mt-2 md:mt-3 text-left">
+                  <div className="md:col-span-2">
+                    <Input 
+                      type="text"
+                      placeholder="Full Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      error={errors.name}
+                      icon={<User size={16} />}
+                      className={inputTealFocusClass}
+                    />
+                  </div>
 
-                  <Input 
-                    type="email"
-                    placeholder="Email Address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    error={errors.email}
-                    icon={<Mail size={16} />}
-                    className={inputTealFocusClass}
-                  />
+                  <div className="md:col-span-1">
+                    <Input 
+                      type="email"
+                      placeholder="Email Address"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      error={errors.email}
+                      icon={<Mail size={16} />}
+                      className={inputTealFocusClass}
+                    />
+                  </div>
 
-                  <Input 
-                    type="tel"
-                    placeholder="Phone Number"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    error={errors.phoneNumber}
-                    icon={<Phone size={16} />}
-                    className={inputTealFocusClass}
-                  />
+                  <div className="md:col-span-1">
+                    <Input 
+                      type="tel"
+                      placeholder="Phone Number"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      error={errors.phoneNumber}
+                      icon={<Phone size={16} />}
+                      className={inputTealFocusClass}
+                    />
+                  </div>
 
-                  <Input 
-                    type="password"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    error={errors.password}
-                    icon={<Lock size={16} />}
-                    className={inputTealFocusClass}
-                  />
+                  <div className="md:col-span-1">
+                    <Input 
+                      type="password"
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      error={errors.password}
+                      icon={<Lock size={16} />}
+                      className={inputTealFocusClass}
+                    />
+                  </div>
 
-                  <Input 
-                    type="password"
-                    placeholder="Confirm Password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    error={errors.confirmPassword}
-                    icon={<Lock size={16} />}
-                    className={inputTealFocusClass}
-                  />
+                  <div className="md:col-span-1">
+                    <Input 
+                      type="password"
+                      placeholder="Confirm Password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      error={errors.confirmPassword}
+                      icon={<Lock size={16} />}
+                      className={inputTealFocusClass}
+                    />
+                  </div>
                 </div>
 
-                <div className="text-center mt-2">
+                <div className="text-center mt-1 md:mt-2">
                   <span className="text-xs text-slate-500">Already have an account? </span>
                   <button 
                     type="button"
@@ -419,12 +441,12 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   variant="teal"
                   type="button"
                   onClick={handleNextStep}
-                  className="py-3.5 shadow-md w-full justify-center mt-2 rounded-xl"
+                  className="py-2.5 md:py-3 shadow-md w-full justify-center mt-1 md:mt-2 rounded-xl"
                 >
                   Next
                 </Button>
 
-                <p className="text-[10px] text-slate-400 text-center leading-normal px-2 mt-2">
+                <p className="text-[10px] text-slate-400 text-center leading-normal px-2 mt-1 md:mt-1.5">
                   By creating an account, you agree to our{' '}
                   <a href="#terms" className="text-accent-teal hover:underline" onClick={(e) => e.preventDefault()} style={{ color: 'var(--color-accent-teal)' }}>Terms & Conditions</a>{' '}
                   and{' '}
@@ -447,35 +469,41 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
                   <p className="text-sm text-slate-500 mt-1">This information helps us know you better</p>
                 </div>
 
-                <div className="flex flex-col gap-3 mt-4 text-left">
-                  <Input 
-                    type="text"
-                    placeholder="Company / Agency Name"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    error={errors.companyName}
-                    icon={<Building2 size={16} />}
-                    className={inputTealFocusClass}
-                  />
-
-                  <Input 
-                    type="text"
-                    placeholder="Website (Optional)"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                    icon={<Globe size={16} />}
-                    className={inputTealFocusClass}
-                  />
-
-                  <div className="flex flex-col gap-1">
-                    <Select 
-                      label="Country"
-                      options={countryOptions}
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      error={errors.country}
-                      className="focus:border-accent-teal focus:ring-3 focus:ring-accent-teal/15"
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 mt-4 text-left">
+                  <div className="md:col-span-1">
+                    <Input 
+                      type="text"
+                      placeholder="Company / Agency Name"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      error={errors.companyName}
+                      icon={<Building2 size={16} />}
+                      className={inputTealFocusClass}
                     />
+                  </div>
+
+                  <div className="md:col-span-1">
+                    <Input 
+                      type="text"
+                      placeholder="Website (Optional)"
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
+                      icon={<Globe size={16} />}
+                      className={inputTealFocusClass}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <div className="flex flex-col gap-1">
+                      <Select 
+                        label="Country"
+                        options={countryOptions}
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                        error={errors.country}
+                        className="focus:border-accent-teal focus:ring-3 focus:ring-accent-teal/15"
+                      />
+                    </div>
                   </div>
                 </div>
 
