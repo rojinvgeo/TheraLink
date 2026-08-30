@@ -176,7 +176,9 @@ export default function PartnerAuthPage({ initialMode = 'register' }: PartnerAut
       prefill: {
         name: prefillName,
         email: prefillEmail,
-        contact: prefillPhone
+        contact: /^[6-9]\d{9}$/.test(prefillPhone.replace(/\D/g, ''))
+          ? prefillPhone.replace(/\D/g, '')
+          : '9999999999'
       },
       theme: {
         color: '#0d9488'
