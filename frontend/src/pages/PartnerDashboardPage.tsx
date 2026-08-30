@@ -10,16 +10,14 @@ import {
   LogOut, 
   MapPin, 
   Briefcase, 
-  Calendar, 
   UserCheck, 
-  Filter,
   CheckCircle2,
   AlertTriangle,
   Clock,
   ExternalLink,
   ChevronRight
 } from 'lucide-react';
-import { Card, Button, Input, Select, Alert } from '../components/ui';
+import { Card, Button, Input, Alert } from '../components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getPartnerDashboardOverview, 

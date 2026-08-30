@@ -14,6 +14,7 @@ export interface PartnerRegisterInput {
 export interface PartnerRegisterResponse {
   success: boolean;
   message: string;
+  token?: string;
   user: {
     id: number;
     email: string;
@@ -69,6 +70,7 @@ export interface PaymentRetryResponse {
   success: boolean;
   message: string;
   already_active: boolean;
+  token?: string;
   user?: {
     id: number;
     email: string;
